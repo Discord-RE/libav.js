@@ -1,5 +1,5 @@
 {
-  "name": "@libav.js/types",
+  "name": "@lng2004/libav.js-types",
   "version": "@VER",
   "description": "A compilation of the libraries associated with handling audio and video in ffmpeg—libavformat, libavcodec, libavfilter, libavutil and libswresample—for WebAssembly and asm.js, and thus the web. This package includes only the types.",
   "types": "dist/libav.types.d.ts",
