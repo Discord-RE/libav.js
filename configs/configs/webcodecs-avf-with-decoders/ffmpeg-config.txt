@@ -55,3 +55,4 @@
 --enable-decoder=vp8
 --enable-decoder=vp9
 --enable-decoder=av1
+--enable-filter=format
