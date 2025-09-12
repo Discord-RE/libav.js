@@ -12,7 +12,7 @@ LIBAVJS_VERSION=$(LIBAVJS_VERSION_BASE).$(FFMPEG_VERSION)$(LIBAVJS_VERSION_SUFFI
 LIBAVJS_VERSION_SHORT=$(LIBAVJS_VERSION_BASE).$(FFMPEG_VERSION_MAJOR)
 EMCC=emcc
 MINIFIER=node_modules/.bin/terser
-OPTFLAGS=-Oz
+OPTFLAGS=-O3 -flto -msimd128
 EMFTFLAGS=-Lbuild/inst/base/lib -lemfiberthreads
 THRFLAGS=-pthread $(EMFTFLAGS)
 ES6FLAGS=-sEXPORT_ES6=1 -sUSE_ES6_IMPORT_META=1
@@ -54,10 +54,6 @@ build-%: \
 	dist/libav-%.dbg.js \
 	dist/libav-$(LIBAVJS_VERSION)-%.dbg.mjs \
 	dist/libav-%.dbg.mjs \
-	dist/libav-$(LIBAVJS_VERSION)-%.asm.js \
-	dist/libav-$(LIBAVJS_VERSION)-%.asm.mjs \
-	dist/libav-$(LIBAVJS_VERSION)-%.dbg.asm.js \
-	dist/libav-$(LIBAVJS_VERSION)-%.dbg.asm.mjs \
 	dist/libav-$(LIBAVJS_VERSION)-%.wasm.js \
 	dist/libav-$(LIBAVJS_VERSION)-%.wasm.mjs \
 	dist/libav-$(LIBAVJS_VERSION)-%.dbg.wasm.js \
@@ -134,11 +130,6 @@ dist/libav-$(LIBAVJS_VERSION)-%.$2$1.$5: build/ffmpeg-$(FFMPEG_VERSION)/build-$3
 	rmdir $(@).d
 ]]])
 
-# asm.js version
-buildrule(asm, [[[]]], base, [[[$(EFLAGS_NTHR) $(EMFTFLAGS) -s WASM=0]]], js)
-buildrule(asm, [[[]]], base, [[[$(EFLAGS_NTHR) $(EMFTFLAGS) $(ES6FLAGS) -s WASM=0]]], mjs)
-buildrule(asm, dbg., base, [[[$(EFLAGS_NTHR) $(EMFTFLAGS) -g2 -s WASM=0]]], js)
-buildrule(asm, dbg., base, [[[$(EFLAGS_NTHR) $(EMFTFLAGS) -g2 $(ES6FLAGS) -s WASM=0]]], mjs)
 # wasm version with no added features
 buildrule(wasm, [[[]]], base, [[[$(EFLAGS_NTHR) $(EMFTFLAGS)]]], js)
 buildrule(wasm, [[[]]], base, [[[$(EFLAGS_NTHR) $(EMFTFLAGS) $(ES6FLAGS)]]], mjs)
@@ -327,10 +318,6 @@ print-version:
 	dist/libav-%.dbg.js \
 	dist/libav-$(LIBAVJS_VERSION)-%.dbg.mjs \
 	dist/libav-%.dbg.mjs \
-	dist/libav-$(LIBAVJS_VERSION)-%.asm.js \
-	dist/libav-$(LIBAVJS_VERSION)-%.asm.mjs \
-	dist/libav-$(LIBAVJS_VERSION)-%.dbg.asm.js \
-	dist/libav-$(LIBAVJS_VERSION)-%.dbg.asm.mjs \
 	dist/libav-$(LIBAVJS_VERSION)-%.wasm.js \
 	dist/libav-$(LIBAVJS_VERSION)-%.wasm.mjs \
 	dist/libav-$(LIBAVJS_VERSION)-%.dbg.wasm.js \

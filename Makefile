@@ -12,7 +12,7 @@ LIBAVJS_VERSION=$(LIBAVJS_VERSION_BASE).$(FFMPEG_VERSION)$(LIBAVJS_VERSION_SUFFI
 LIBAVJS_VERSION_SHORT=$(LIBAVJS_VERSION_BASE).$(FFMPEG_VERSION_MAJOR)
 EMCC=emcc
 MINIFIER=node_modules/.bin/terser
-OPTFLAGS=-O3
+OPTFLAGS=-O3 -flto -msimd128
 EMFTFLAGS=-Lbuild/inst/base/lib -lemfiberthreads
 THRFLAGS=-pthread $(EMFTFLAGS)
 ES6FLAGS=-sEXPORT_ES6=1 -sUSE_ES6_IMPORT_META=1
@@ -54,10 +54,6 @@ build-%: \
 	dist/libav-%.dbg.js \
 	dist/libav-$(LIBAVJS_VERSION)-%.dbg.mjs \
 	dist/libav-%.dbg.mjs \
-	dist/libav-$(LIBAVJS_VERSION)-%.asm.js \
-	dist/libav-$(LIBAVJS_VERSION)-%.asm.mjs \
-	dist/libav-$(LIBAVJS_VERSION)-%.dbg.asm.js \
-	dist/libav-$(LIBAVJS_VERSION)-%.dbg.asm.mjs \
 	dist/libav-$(LIBAVJS_VERSION)-%.wasm.js \
 	dist/libav-$(LIBAVJS_VERSION)-%.wasm.mjs \
 	dist/libav-$(LIBAVJS_VERSION)-%.dbg.wasm.js \
@@ -118,170 +114,6 @@ dist/libav.types.d.ts: build/libav.types.d.ts
 # Use: buildrule(target file name, debug infix, target inst name, extra link flags, target file suffix)
 
 
-# asm.js version
-
-dist/libav-$(LIBAVJS_VERSION)-%.asm.js: build/ffmpeg-$(FFMPEG_VERSION)/build-base-%/libavformat/libavformat.a \
-	build/exports-%.json src/pre.js build/post-%.js build/extern-post.js \
-        src/bindings.c src/b-*.c
-	mkdir -p $(@).d
-	$(EMCC) $(OPTFLAGS) $(EFLAGS) \
-		--extern-post-js build/extern-post.js \
-		--post-js build/post-$(*).js \
-		-s "EXPORTED_FUNCTIONS=@build/exports-$(*).json" \
-		-Ibuild/ffmpeg-$(FFMPEG_VERSION) -Ibuild/ffmpeg-$(FFMPEG_VERSION)/build-base-$(*) \
-		`test ! -e configs/configs/$(*)/link-flags.txt || cat configs/configs/$(*)/link-flags.txt` \
-		src/bindings.c \
-		`grep LIBAVJS_WITH_CLI configs/configs/$(*)/link-flags.txt > /dev/null 2>&1 && echo ' \
-		build/ffmpeg-$(FFMPEG_VERSION)/build-base-$(*)/fftools/*.o \
-		-Lbuild/ffmpeg-$(FFMPEG_VERSION)/build-base-$(*)/libavdevice -lavdevice \
-		'` \
-		`test -e build/ffmpeg-$(FFMPEG_VERSION)/build-base-$(*)/fftools/textformat/tf_xml.o && echo ' \
-		build/ffmpeg-$(FFMPEG_VERSION)/build-base-$(*)/fftools/*/*.o \
-		'` \
-		`test ! -e configs/configs/$(*)/libs.txt || sed 's/@FFVER/$(FFMPEG_VERSION)/ ; s/@TARGET/base/ ; s/@VARIANT/$(*)/' configs/configs/$(*)/libs.txt` \
-		$(EFLAGS_NTHR) $(EMFTFLAGS) -s WASM=0 \
-		-o $(@).d/libav-$(LIBAVJS_VERSION)-$(*).asm.js
-	if [ -e $(@).d/libav-$(LIBAVJS_VERSION)-$(*).asm.wasm.map ] ; then \
-		./tools/adjust-sourcemap.js $(@).d/libav-$(LIBAVJS_VERSION)-$(*).asm.wasm.map \
-			ffmpeg $(FFMPEG_VERSION) \
-			libvpx $(LIBVPX_VERSION) \
-			libaom $(LIBAOM_VERSION); \
-	fi || ( rm -f $(@) ; false )
-	sed " \
-		s/^\/\/.*include:.*// ; \
-		s/@VER/$(LIBAVJS_VERSION)/g ; \
-		s/@VARIANT/$(*)/g ; \
-		s/@TARGET/asm/g ; \
-		s/@DBG//g ; \
-		s/@JS/js/g \
-	" $(@).d/libav-$(LIBAVJS_VERSION)-$(*).asm.js | tools/license-header.sh configs/configs/$(*)/license.js > $(@)
-	rm -f $(@).d/libav-$(LIBAVJS_VERSION)-$(*).asm.js
-	-chmod a-x $(@).d/*.wasm
-	-mv $(@).d/* dist/
-	rmdir $(@).d
-
-
-dist/libav-$(LIBAVJS_VERSION)-%.asm.mjs: build/ffmpeg-$(FFMPEG_VERSION)/build-base-%/libavformat/libavformat.a \
-	build/exports-%.json src/pre.js build/post-%.js build/extern-post.mjs \
-        src/bindings.c src/b-*.c
-	mkdir -p $(@).d
-	$(EMCC) $(OPTFLAGS) $(EFLAGS) \
-		--extern-post-js build/extern-post.mjs \
-		--post-js build/post-$(*).js \
-		-s "EXPORTED_FUNCTIONS=@build/exports-$(*).json" \
-		-Ibuild/ffmpeg-$(FFMPEG_VERSION) -Ibuild/ffmpeg-$(FFMPEG_VERSION)/build-base-$(*) \
-		`test ! -e configs/configs/$(*)/link-flags.txt || cat configs/configs/$(*)/link-flags.txt` \
-		src/bindings.c \
-		`grep LIBAVJS_WITH_CLI configs/configs/$(*)/link-flags.txt > /dev/null 2>&1 && echo ' \
-		build/ffmpeg-$(FFMPEG_VERSION)/build-base-$(*)/fftools/*.o \
-		-Lbuild/ffmpeg-$(FFMPEG_VERSION)/build-base-$(*)/libavdevice -lavdevice \
-		'` \
-		`test -e build/ffmpeg-$(FFMPEG_VERSION)/build-base-$(*)/fftools/textformat/tf_xml.o && echo ' \
-		build/ffmpeg-$(FFMPEG_VERSION)/build-base-$(*)/fftools/*/*.o \
-		'` \
-		`test ! -e configs/configs/$(*)/libs.txt || sed 's/@FFVER/$(FFMPEG_VERSION)/ ; s/@TARGET/base/ ; s/@VARIANT/$(*)/' configs/configs/$(*)/libs.txt` \
-		$(EFLAGS_NTHR) $(EMFTFLAGS) $(ES6FLAGS) -s WASM=0 \
-		-o $(@).d/libav-$(LIBAVJS_VERSION)-$(*).asm.mjs
-	if [ -e $(@).d/libav-$(LIBAVJS_VERSION)-$(*).asm.wasm.map ] ; then \
-		./tools/adjust-sourcemap.js $(@).d/libav-$(LIBAVJS_VERSION)-$(*).asm.wasm.map \
-			ffmpeg $(FFMPEG_VERSION) \
-			libvpx $(LIBVPX_VERSION) \
-			libaom $(LIBAOM_VERSION); \
-	fi || ( rm -f $(@) ; false )
-	sed " \
-		s/^\/\/.*include:.*// ; \
-		s/@VER/$(LIBAVJS_VERSION)/g ; \
-		s/@VARIANT/$(*)/g ; \
-		s/@TARGET/asm/g ; \
-		s/@DBG//g ; \
-		s/@JS/mjs/g \
-	" $(@).d/libav-$(LIBAVJS_VERSION)-$(*).asm.mjs | tools/license-header.sh configs/configs/$(*)/license.js > $(@)
-	rm -f $(@).d/libav-$(LIBAVJS_VERSION)-$(*).asm.mjs
-	-chmod a-x $(@).d/*.wasm
-	-mv $(@).d/* dist/
-	rmdir $(@).d
-
-
-dist/libav-$(LIBAVJS_VERSION)-%.dbg.asm.js: build/ffmpeg-$(FFMPEG_VERSION)/build-base-%/libavformat/libavformat.a \
-	build/exports-%.json src/pre.js build/post-%.js build/extern-post.js \
-        src/bindings.c src/b-*.c
-	mkdir -p $(@).d
-	$(EMCC) $(OPTFLAGS) $(EFLAGS) \
-		--extern-post-js build/extern-post.js \
-		--post-js build/post-$(*).js \
-		-s "EXPORTED_FUNCTIONS=@build/exports-$(*).json" \
-		-Ibuild/ffmpeg-$(FFMPEG_VERSION) -Ibuild/ffmpeg-$(FFMPEG_VERSION)/build-base-$(*) \
-		`test ! -e configs/configs/$(*)/link-flags.txt || cat configs/configs/$(*)/link-flags.txt` \
-		src/bindings.c \
-		`grep LIBAVJS_WITH_CLI configs/configs/$(*)/link-flags.txt > /dev/null 2>&1 && echo ' \
-		build/ffmpeg-$(FFMPEG_VERSION)/build-base-$(*)/fftools/*.o \
-		-Lbuild/ffmpeg-$(FFMPEG_VERSION)/build-base-$(*)/libavdevice -lavdevice \
-		'` \
-		`test -e build/ffmpeg-$(FFMPEG_VERSION)/build-base-$(*)/fftools/textformat/tf_xml.o && echo ' \
-		build/ffmpeg-$(FFMPEG_VERSION)/build-base-$(*)/fftools/*/*.o \
-		'` \
-		`test ! -e configs/configs/$(*)/libs.txt || sed 's/@FFVER/$(FFMPEG_VERSION)/ ; s/@TARGET/base/ ; s/@VARIANT/$(*)/' configs/configs/$(*)/libs.txt` \
-		$(EFLAGS_NTHR) $(EMFTFLAGS) -g2 -s WASM=0 \
-		-o $(@).d/libav-$(LIBAVJS_VERSION)-$(*).dbg.asm.js
-	if [ -e $(@).d/libav-$(LIBAVJS_VERSION)-$(*).dbg.asm.wasm.map ] ; then \
-		./tools/adjust-sourcemap.js $(@).d/libav-$(LIBAVJS_VERSION)-$(*).dbg.asm.wasm.map \
-			ffmpeg $(FFMPEG_VERSION) \
-			libvpx $(LIBVPX_VERSION) \
-			libaom $(LIBAOM_VERSION); \
-	fi || ( rm -f $(@) ; false )
-	sed " \
-		s/^\/\/.*include:.*// ; \
-		s/@VER/$(LIBAVJS_VERSION)/g ; \
-		s/@VARIANT/$(*)/g ; \
-		s/@TARGET/asm/g ; \
-		s/@DBG/dbg./g ; \
-		s/@JS/js/g \
-	" $(@).d/libav-$(LIBAVJS_VERSION)-$(*).dbg.asm.js | tools/license-header.sh configs/configs/$(*)/license.js > $(@)
-	rm -f $(@).d/libav-$(LIBAVJS_VERSION)-$(*).dbg.asm.js
-	-chmod a-x $(@).d/*.wasm
-	-mv $(@).d/* dist/
-	rmdir $(@).d
-
-
-dist/libav-$(LIBAVJS_VERSION)-%.dbg.asm.mjs: build/ffmpeg-$(FFMPEG_VERSION)/build-base-%/libavformat/libavformat.a \
-	build/exports-%.json src/pre.js build/post-%.js build/extern-post.mjs \
-        src/bindings.c src/b-*.c
-	mkdir -p $(@).d
-	$(EMCC) $(OPTFLAGS) $(EFLAGS) \
-		--extern-post-js build/extern-post.mjs \
-		--post-js build/post-$(*).js \
-		-s "EXPORTED_FUNCTIONS=@build/exports-$(*).json" \
-		-Ibuild/ffmpeg-$(FFMPEG_VERSION) -Ibuild/ffmpeg-$(FFMPEG_VERSION)/build-base-$(*) \
-		`test ! -e configs/configs/$(*)/link-flags.txt || cat configs/configs/$(*)/link-flags.txt` \
-		src/bindings.c \
-		`grep LIBAVJS_WITH_CLI configs/configs/$(*)/link-flags.txt > /dev/null 2>&1 && echo ' \
-		build/ffmpeg-$(FFMPEG_VERSION)/build-base-$(*)/fftools/*.o \
-		-Lbuild/ffmpeg-$(FFMPEG_VERSION)/build-base-$(*)/libavdevice -lavdevice \
-		'` \
-		`test -e build/ffmpeg-$(FFMPEG_VERSION)/build-base-$(*)/fftools/textformat/tf_xml.o && echo ' \
-		build/ffmpeg-$(FFMPEG_VERSION)/build-base-$(*)/fftools/*/*.o \
-		'` \
-		`test ! -e configs/configs/$(*)/libs.txt || sed 's/@FFVER/$(FFMPEG_VERSION)/ ; s/@TARGET/base/ ; s/@VARIANT/$(*)/' configs/configs/$(*)/libs.txt` \
-		$(EFLAGS_NTHR) $(EMFTFLAGS) -g2 $(ES6FLAGS) -s WASM=0 \
-		-o $(@).d/libav-$(LIBAVJS_VERSION)-$(*).dbg.asm.mjs
-	if [ -e $(@).d/libav-$(LIBAVJS_VERSION)-$(*).dbg.asm.wasm.map ] ; then \
-		./tools/adjust-sourcemap.js $(@).d/libav-$(LIBAVJS_VERSION)-$(*).dbg.asm.wasm.map \
-			ffmpeg $(FFMPEG_VERSION) \
-			libvpx $(LIBVPX_VERSION) \
-			libaom $(LIBAOM_VERSION); \
-	fi || ( rm -f $(@) ; false )
-	sed " \
-		s/^\/\/.*include:.*// ; \
-		s/@VER/$(LIBAVJS_VERSION)/g ; \
-		s/@VARIANT/$(*)/g ; \
-		s/@TARGET/asm/g ; \
-		s/@DBG/dbg./g ; \
-		s/@JS/mjs/g \
-	" $(@).d/libav-$(LIBAVJS_VERSION)-$(*).dbg.asm.mjs | tools/license-header.sh configs/configs/$(*)/license.js > $(@)
-	rm -f $(@).d/libav-$(LIBAVJS_VERSION)-$(*).dbg.asm.mjs
-	-chmod a-x $(@).d/*.wasm
-	-mv $(@).d/* dist/
-	rmdir $(@).d
 
 # wasm version with no added features
 
@@ -791,10 +623,6 @@ print-version:
 	dist/libav-%.dbg.js \
 	dist/libav-$(LIBAVJS_VERSION)-%.dbg.mjs \
 	dist/libav-%.dbg.mjs \
-	dist/libav-$(LIBAVJS_VERSION)-%.asm.js \
-	dist/libav-$(LIBAVJS_VERSION)-%.asm.mjs \
-	dist/libav-$(LIBAVJS_VERSION)-%.dbg.asm.js \
-	dist/libav-$(LIBAVJS_VERSION)-%.dbg.asm.mjs \
 	dist/libav-$(LIBAVJS_VERSION)-%.wasm.js \
 	dist/libav-$(LIBAVJS_VERSION)-%.wasm.mjs \
 	dist/libav-$(LIBAVJS_VERSION)-%.dbg.wasm.js \
